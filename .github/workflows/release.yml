@@ -20,7 +20,7 @@ jobs:
   build-push:
     name: Build & Push
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -69,7 +69,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
       - name: Attest image provenance
         uses: actions/attest-build-provenance@v2
