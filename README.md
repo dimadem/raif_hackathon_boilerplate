@@ -9,17 +9,17 @@
 * **Менеджер пакетов:** [uv](https://github.com/astral-sh/uv)
 * **Запуск команд:** [just](https://github.com/casey/just)
 * **Контейнеризация:** Docker + Docker Compose
-* **Качество кода:** Ruff (linter/formatter), mypy (строгая типизация), pre-commit хуки
+* **Качество кода:** Ruff (linter/formatter), mypy (строгая типизация), pre-commit-хуки
 * **CI/CD:** GitHub Actions + GitHub Container Registry (GHCR) + SSH Deploy
 
-> Опционально: вместо OpenRouter можно поднять локальную NLI-модель через Hugging Face Transformers.
-> Зависимости вынесены в группу `hf` (`uv sync --group hf`); закомментированные HF-блоки лежат в `docker-compose.local.yml` и `.github/workflows/release.yml` (для образа добавь `MODEL_CACHE_DIR` в `Dockerfile`).
+> Опционально: вместо OpenRouter можно развернуть локальную NLI-модель через Hugging Face Transformers.
+> Зависимости вынесены в группу `hf` (`uv sync --group hf`); готовые закомментированные HF-блоки находятся в `docker-compose.local.yml` и `.github/workflows/release.yml`. Для образа добавьте в `Dockerfile` переменную `MODEL_CACHE_DIR` (путь к кешу моделей) и каталог под него.
 
 ---
 
 ## 🚀 Установка инструментов
 
-Установи менеджер пакетов `uv` и команду-раннер `just`.
+Установите менеджер пакетов `uv` и команду-раннер `just`. Для режима разработки в Docker и для деплоя также потребуется [Docker](https://docs.docker.com/get-docker/) (Docker Desktop на macOS/Windows или Docker Engine на Linux).
 
 ### macOS
 ```bash
@@ -28,8 +28,12 @@ brew install uv just
 
 ### Windows (через scoop / winget)
 ```bash
+# winget
 winget install astral-sh.uv
 winget install casey.just
+
+# или scoop
+scoop install uv just
 ```
 
 ### Linux (Debian/Ubuntu)
@@ -46,33 +50,33 @@ curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -
 ```bash
 just setup
 ```
-Создаст `.venv`, установит зависимости по `uv.lock`, настроит pre-commit хуки.
+Создаёт `.venv`, устанавливает зависимости из `uv.lock` и настраивает pre-commit-хуки.
 
-### Шаг 2. Задай OpenRouter API key
-Скопируй шаблон и впиши свой ключ:
+### Шаг 2. Укажите OpenRouter API key
+Скопируйте шаблон и впишите свой ключ:
 ```bash
 cp .env.example .env
 # затем в .env: OPENROUTER_API_KEY=sk-or-...
 ```
 
-> В текущем boilerplate `process_risk_detection` в `app/models.py` — демо-заглушка: возвращает фиксированные категории для первых 5 запросов и `None` дальше. `LLMClient` создаётся в `lifespan`, но реально не вызывается — ключ нужен, как только подключишь его в детекторе.
+> **Ключ потребуется для деплоя и после замены заглушки реальным вызовом LLM.** В текущем boilerplate `process_risk_detection` в `app/models.py` — демонстрационная заглушка: возвращает фиксированные категории для первых 5 запросов и `None` далее. `LLMClient` создаётся в `lifespan`, но не вызывается. Это сделано намеренно — заглушку необходимо переписать под собственную логику детекции; запустить и протестировать пайплайн `/check` можно сразу, без ключа.
 
-### Шаг 3. Запусти dev-сервер
-Выбери один из двух режимов:
+### Шаг 3. Запустите dev-сервер
+Выберите один из двух режимов:
 
-#### Вариант А — Docker (ближе к прод-окружению)
+#### Вариант А — Docker (ближе к production-окружению)
 ```bash
 just dev-docker
 ```
-Сервер на http://localhost:8787. Docker Compose Watch синхронизирует изменения в `app/` без пересборки; при правках `pyproject.toml` контейнер пересобирается автоматически.
+Сервер доступен по адресу http://localhost:8787. Docker Compose Watch синхронизирует изменения в `app/` без пересборки; при изменении `pyproject.toml` контейнер пересобирается автоматически.
 
-#### Вариант Б — без Docker (быстрее для отладки)
+#### Вариант Б — без Docker (удобнее для отладки)
 ```bash
 just dev-local
 ```
-Сервер на http://localhost:8787 через локальный `uvicorn`.
+Сервер доступен по адресу http://localhost:8787 через локальный `uvicorn`.
 
-### Шаг 4. Проверь код перед коммитом
+### Шаг 4. Проверьте код перед коммитом
 
 ```bash
 just audit   # Ruff (lint + fix + format), mypy, flake8
@@ -83,10 +87,10 @@ just test    # pytest
 
 ## 🧪 2. Тестирование API локально
 
-После запуска dev-сервера протестируй эндпоинты.
+После запуска dev-сервера протестируйте эндпоинты.
 
 ### Swagger UI
-Открой **http://localhost:8787/docs** — там интерактивная документация и кнопка «Try it out» для каждого метода.
+Откройте **http://localhost:8787/docs** — интерактивная документация с кнопкой «Try it out» для каждого метода.
 
 ### Эндпоинты
 * **GET `/health`** — статус сервиса.
@@ -106,7 +110,7 @@ curl -X POST "http://localhost:8787/check" \
      }'
 ```
 
-**Ожидаемый ответ (схема контракта с evaluator'ом):**
+**Формат ответа (схема контракта с evaluator'ом):**
 ```json
 {
   "session_id": "008",
@@ -117,17 +121,19 @@ curl -X POST "http://localhost:8787/check" \
 }
 ```
 
+> Это иллюстрация **структуры** ответа, а не дословный вывод заглушки. Реальные значения `category` и `processing_time_ms` зависят от вашей логики детекции; у демонстрационной заглушки время близко к `0`, а категории заданы жёстко только для первых запросов.
+
 `RedFlagItem` содержит только поле `category` (строка ≤4096 символов), общее число элементов в `predicted_red_flags` — ≤200. Контракт проверяется в `tests/test_check.py` (схема `CheckResponse` + `RedFlagItem`).
 
 ---
 
 ## 🚢 3. Отправка на тестирование
 
-Сервер уже подготовлен организаторами — устанавливать туда что-либо вручную не нужно. Тебе достаточно один раз вписать секреты и потом запускать релизы одной командой.
+Сервер уже подготовлен организаторами — устанавливать на него что-либо вручную не требуется. Достаточно один раз указать секреты и затем запускать релизы одной командой.
 
 ### Шаг 1. Секреты в GitHub
 
-Перейди в **Settings → Secrets and variables → Actions** своего репозитория и добавь:
+Откройте **Settings → Secrets and variables → Actions** своего репозитория и добавьте:
 
 | Секрет | Что туда положить |
 |---|---|
@@ -136,19 +142,28 @@ curl -X POST "http://localhost:8787/check" \
 | `EVAL_TOKEN` | Токен для evaluator'а (выдают организаторы) |
 | `OPENROUTER_API_KEY` | API-ключ OpenRouter |
 
-### Шаг 2. Запусти релиз
+### Шаг 2. Закоммитьте и отправьте код
+
+Релиз собирается из состояния коммита, помеченного тегом, поэтому сначала убедитесь, что весь код закоммичен и отправлен в `main`:
+```bash
+git add -A
+git commit -m "сообщение коммита"
+git push origin main
+```
+
+### Шаг 3. Запустите релиз
 
 ```bash
 just release 1.0.0
 ```
 
-Номер версии — любой в формате `MAJOR.MINOR.PATCH`. Команда создаст тег `v1.0.0` и пушнет его на GitHub — дальше всё происходит само. Прогресс смотри во вкладке **Actions** репозитория.
+Номер версии — любой в формате `MAJOR.MINOR.PATCH`. Команда создаёт тег `v1.0.0` и отправляет его на GitHub, после чего процесс выполняется автоматически. Прогресс отслеживается во вкладке **Actions** репозитория.
 
-### Шаг 3. Смотри результаты
+### Шаг 4. Результаты
 
-Команда организаторов даст доступ к публичному дашборду.
+Команда организаторов предоставит доступ к публичному дашборду.
 
-Для следующего релиза просто повысь номер — `just release 1.0.1`, `1.1.0` и т.д.
+Для следующего релиза увеличьте номер версии — `just release 1.0.1`, `1.1.0` и т.д.
 
 ---
 
@@ -157,19 +172,20 @@ just release 1.0.0
 ```
 raif_hackathon_boilerplate/
 ├── .github/workflows/
-│   └── release.yml          # GitHub Actions CI/CD пайплайн деплоя
-├── app/                     # Исходный код FastAPI приложения
+│   └── release.yml          # CI/CD-пайплайн сборки и деплоя (GitHub Actions)
+├── app/                     # Исходный код FastAPI-приложения
 │   ├── routers/
 │   │   ├── health.py        # GET /health
 │   │   └── check.py         # POST /check (контракт с evaluator'ом)
-│   ├── main.py              # Точка входа в приложение и lifespan-настройки
+│   ├── main.py              # Точка входа в приложение и настройки lifespan
 │   └── models.py            # LLM-клиент (OpenRouter) и заглушка детектора
 ├── tests/                   # Контрактные тесты пайплайна (pytest)
 │   └── test_check.py        # Проверка контракта ответа (CheckResponse + RedFlagItem)
-├── .env.example             # Шаблон переменных окружения (скопируй в .env)
-├── Dockerfile               # Инструкция сборки Docker-образа для Production
-├── docker-compose.local.yml # Настройки локальной связки для just dev-docker
-├── justfile                 # Список команд быстрого доступа для just
-├── pyproject.toml           # Зависимости проекта и конфиги Ruff, Mypy, Pytest
+├── .env.example             # Шаблон переменных окружения (копируется в .env)
+├── .pre-commit-config.yaml  # Конфигурация pre-commit-хуков (Ruff, mypy, flake8 — запускаются при коммите)
+├── Dockerfile               # Инструкция сборки Docker-образа для production
+├── docker-compose.local.yml # Конфигурация локального окружения для just dev-docker
+├── justfile                 # Перечень команд быстрого доступа для just
+├── pyproject.toml           # Зависимости проекта и конфигурация Ruff, mypy, pytest
 └── uv.lock                  # Зафиксированные версии зависимостей
 ```
